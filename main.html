@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tracker de Victorias / Derrotas</title>
+    <style>
+      /* -------- Paleta & base -------- */
+      :root {
+        --bg: #0e1017;
+        --panel: #1c1f26;
+        --accent: #f0b90b;
+        --text: #eef1f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 1rem;
+        gap: 2rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 2rem;
+        text-align: center;
+      }
+
+      /* -------- Secciones por campeón -------- */
+
+      .champ-section {
+        width: 100%;
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .player-wrapper,
+      .controls,
+      .panel {
+        background: var(--panel);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+      }
+
+      .player {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .player img {
+        width: 72px;
+        height: 72px;
+        border-radius: 12px;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+        justify-content: center;
+      }
+
+      select,
+      button {
+        padding: 0.6rem 1rem;
+        font-size: 1rem;
+        border: none;
+        border-radius: 8px;
+      }
+
+      select {
+        background: var(--panel);
+        color: var(--text);
+      }
+
+      button {
+        cursor: pointer;
+        background: var(--accent);
+        color: #000;
+        font-weight: 600;
+        transition: filter 0.2s ease;
+      }
+
+      button:hover {
+        filter: brightness(1.1);
+      }
+
+      .results-wrapper {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+      }
+
+      .panel h2 {
+        margin-top: 0;
+        font-size: 1.2rem;
+        text-align: center;
+      }
+
+      .champion {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .champion img {
+        width: 40px;
+        height: 40px;
+        border-radius: 6px;
+      }
+
+      .counter {
+        background: var(--accent);
+        color: #000;
+        padding: 0 6px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.9rem;
+      }
+
+      /* Separador visual entre secciones */
+      hr {
+        width: 60%;
+        border: 0;
+        border-top: 2px dashed #444;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tracker de Victorias / Derrotas</h1>
+    <main id="app"></main>
+
+    <script>
+      /* =============================================================
+       *  Constantes y variables globales
+       * ===========================================================*/
+      const STORAGE_KEY = "lolTrackerData";
+      let savedData = {}; // se sincroniza con localStorage
+
+      let ddragonVersion = "14.8.1"; // fallback en caso de error
+      let championsData = {};
+      const players = {}; // { JarvanIV: {wins: {}, losses: {}, winsList, lossesList} }
+
+      /** Devuelve URL a icono del campeón */
+      const championImgUrl = (id) =>
+        `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${id}.png`;
+
+      /* =============================================================
+       *  Persistencia en localStorage
+       * ===========================================================*/
+
+      const loadSavedData = () => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+          console.error("Error al leer localStorage", e);
+          return {};
+        }
+      };
+
+      const saveData = () => {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+        } catch (e) {
+          console.error("No se pudo guardar en localStorage", e);
+        }
+      };
+
+      /* =============================================================
+       *  Utilidades de Data Dragon
+       * ===========================================================*/
+
+      async function loadChampions() {
+        try {
+          const versionsRes = await fetch(
+            "https://ddragon.leagueoflegends.com/api/versions.json"
+          );
+          const versions = await versionsRes.json();
+          ddragonVersion = versions[0];
+
+          const champsRes = await fetch(
+            `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/data/en_US/champion.json`
+          );
+          const champs = await champsRes.json();
+          championsData = champs.data;
+        } catch (err) {
+          console.error("No se pudo obtener Data Dragon:", err);
+        }
+      }
+
+      /* =============================================================
+       *  Construcción dinámica de secciones por jugador
+       * ===========================================================*/
+
+      function createPlayerSection(playerId, highlight = false) {
+        const champName = championsData[playerId]?.name ?? playerId;
+        const app = document.getElementById("app");
+
+        // --- Estructura base ------------------------------------
+        const section = document.createElement("section");
+        section.className = "champ-section";
+        section.innerHTML = `
+          <div class="player-wrapper">
+            <div class="player">
+              <img class="player-img" src="${championImgUrl(playerId)}" alt="${champName}">
+              <div>
+                <strong class="player-name">${champName}</strong>
+                <div>${highlight ? "Tu campeón principal" : "Campeón secundario"}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <label>Elegí un campeón rival:</label>
+            <select class="champ-select"></select>
+            <button class="btn-win">Agregar Victoria</button>
+            <button class="btn-loss">Agregar Derrota</button>
+          </div>
+
+          <div class="results-wrapper">
+            <div class="panel">
+              <h2>Campeones que venciste</h2>
+              <div class="wins-list"></div>
+            </div>
+            <div class="panel">
+              <h2>Campeones que te vencieron</h2>
+              <div class="losses-list"></div>
+            </div>
+          </div>
+        `;
+
+        app.appendChild(section);
+
+        // --- Referencias DOM ------------------------------------
+        const select = section.querySelector(".champ-select");
+        const btnWin = section.querySelector(".btn-win");
+        const btnLoss = section.querySelector(".btn-loss");
+        const winsList = section.querySelector(".wins-list");
+        const lossesList = section.querySelector(".losses-list");
+
+        // Rellenar selector con todos los campeones
+        Object.values(championsData).forEach((champ) => {
+          const option = document.createElement("option");
+          option.value = champ.id;
+          option.textContent = champ.name;
+          select.appendChild(option);
+        });
+
+        // --- Estado y restauración --------------------------------
+        const initial = savedData[playerId] ?? { wins: {}, losses: {} };
+        players[playerId] = {
+          wins: { ...initial.wins },
+          losses: { ...initial.losses },
+          winsList,
+          lossesList,
+        };
+
+        // Renderizar elementos guardados
+        const renderCounters = (map, listEl) => {
+          Object.entries(map).forEach(([champId, count]) => {
+            const champName = championsData[champId]?.name ?? champId;
+            const wrapper = document.createElement("div");
+            wrapper.className = "champion";
+            wrapper.dataset.id = champId;
+            wrapper.innerHTML = `
+              <img src="${championImgUrl(champId)}" alt="${champName}">
+              <span>${champName}</span>
+              <span class="counter">${count}</span>
+            `;
+            listEl.appendChild(wrapper);
+          });
+        };
+
+        renderCounters(players[playerId].wins, winsList);
+        renderCounters(players[playerId].losses, lossesList);
+
+        // Listeners para nuevos resultados
+        btnWin.addEventListener("click", () =>
+          addResult(playerId, "win", select.value)
+        );
+        btnLoss.addEventListener("click", () =>
+          addResult(playerId, "loss", select.value)
+        );
+      }
+
+      function addResult(playerId, type, champId) {
+        const store = players[playerId];
+        const map = type === "win" ? store.wins : store.losses;
+        const list = type === "win" ? store.winsList : store.lossesList;
+        const champName = championsData[champId].name;
+
+        if (map[champId]) {
+          map[champId] += 1;
+          const counter = list.querySelector(
+            `.champion[data-id="${champId}"] .counter`
+          );
+          counter.textContent = map[champId];
+        } else {
+          map[champId] = 1;
+          const wrapper = document.createElement("div");
+          wrapper.className = "champion";
+          wrapper.dataset.id = champId;
+          wrapper.innerHTML = `
+            <img src="${championImgUrl(champId)}" alt="${champName}">
+            <span>${champName}</span>
+            <span class="counter">1</span>
+          `;
+          list.appendChild(wrapper);
+        }
+
+        // Actualizar estructura persistida y guardar
+        if (!savedData[playerId]) savedData[playerId] = { wins: {}, losses: {} };
+        savedData[playerId][type === "win" ? "wins" : "losses"][champId] =
+          map[champId];
+        saveData();
+      }
+
+      /* =============================================================
+       *  Inicialización global
+       * ===========================================================*/
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        savedData = loadSavedData();
+        await loadChampions();
+
+        createPlayerSection("JarvanIV", true); // Main
+
+        // Separador visual
+        const hr = document.createElement("hr");
+        document.getElementById("app").appendChild(hr);
+
+        createPlayerSection("Zoe"); // Secundario
+      });
+    </script>
+  </body>
+</html>
