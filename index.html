@@ -115,10 +115,12 @@
       }
 
       .champion {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 0.5rem;
         margin-bottom: 0.5rem;
+        padding-right: 30px; /* Espacio para el botón de eliminar */
       }
 
       .champion img {
@@ -136,11 +138,58 @@
         font-size: 0.9rem;
       }
 
+      .delete-btn {
+        position: absolute;
+        right: 0;
+        background: transparent;
+        color: #ff5555;
+        border: none;
+        font-size: 1.2rem;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.6;
+        transition: opacity 0.2s ease;
+        cursor: pointer;
+      }
+
+      .delete-btn:hover {
+        opacity: 1;
+        background: transparent;
+        filter: none;
+      }
+
       /* Separador visual entre secciones */
       hr {
         width: 60%;
         border: 0;
         border-top: 2px dashed #444;
+      }
+
+      .data-controls {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      .btn-data {
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--accent);
+        cursor: pointer;
+        padding: 0.6rem 1rem;
+        font-size: 1rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+      }
+
+      .btn-data:hover {
+        background: var(--accent);
+        color: #000;
       }
     </style>
   </head>
@@ -203,7 +252,7 @@
           const champs = await champsRes.json();
           championsData = champs.data;
         } catch (err) {
-          console.error("No se pudo obtener Data Dragon:", err);
+          console.error("No se pudo obtener Data Dragon:", err);
         }
       }
 
@@ -224,7 +273,7 @@
               <img class="player-img" src="${championImgUrl(playerId)}" alt="${champName}">
               <div>
                 <strong class="player-name">${champName}</strong>
-                <div>${highlight ? "Tu campeón principal" : "Campeón secundario"}</div>
+                <div>${highlight ? "EL REY DE DEMACIA" : "Best Zoe LAS"}</div>
               </div>
             </div>
           </div>
@@ -275,7 +324,7 @@
         };
 
         // Renderizar elementos guardados
-        const renderCounters = (map, listEl) => {
+        const renderCounters = (map, listEl, playerId, type) => {
           Object.entries(map).forEach(([champId, count]) => {
             const champName = championsData[champId]?.name ?? champId;
             const wrapper = document.createElement("div");
@@ -285,13 +334,21 @@
               <img src="${championImgUrl(champId)}" alt="${champName}">
               <span>${champName}</span>
               <span class="counter">${count}</span>
+              <button class="delete-btn" title="Eliminar" aria-label="Eliminar resultado">×</button>
             `;
+            
+            // Agregar listener al botón de eliminar
+            const deleteBtn = wrapper.querySelector(".delete-btn");
+            deleteBtn.addEventListener("click", () => {
+              deleteResult(playerId, type, champId);
+            });
+            
             listEl.appendChild(wrapper);
           });
         };
 
-        renderCounters(players[playerId].wins, winsList);
-        renderCounters(players[playerId].losses, lossesList);
+        renderCounters(players[playerId].wins, winsList, playerId, "win");
+        renderCounters(players[playerId].losses, lossesList, playerId, "loss");
 
         // Listeners para nuevos resultados
         btnWin.addEventListener("click", () =>
@@ -323,7 +380,15 @@
             <img src="${championImgUrl(champId)}" alt="${champName}">
             <span>${champName}</span>
             <span class="counter">1</span>
+            <button class="delete-btn" title="Eliminar" aria-label="Eliminar resultado">×</button>
           `;
+          
+          // Agregar listener al botón de eliminar
+          const deleteBtn = wrapper.querySelector(".delete-btn");
+          deleteBtn.addEventListener("click", () => {
+            deleteResult(playerId, type, champId);
+          });
+          
           list.appendChild(wrapper);
         }
 
@@ -334,6 +399,104 @@
         saveData();
       }
 
+      function deleteResult(playerId, type, champId) {
+        const store = players[playerId];
+        const map = type === "win" ? store.wins : store.losses;
+        const list = type === "win" ? store.winsList : store.lossesList;
+        
+        // Reducir el contador en 1
+        if (map[champId] > 1) {
+          // Si hay más de 1, solo reducimos el contador
+          map[champId] -= 1;
+          
+          // Actualizar el contador en el DOM
+          const counter = list.querySelector(
+            `.champion[data-id="${champId}"] .counter`
+          );
+          counter.textContent = map[champId];
+        } else {
+          // Si solo hay 1, eliminamos completamente la entrada
+          delete map[champId];
+          
+          // Eliminar del DOM
+          const element = list.querySelector(`.champion[data-id="${champId}"]`);
+          if (element) {
+            element.remove();
+          }
+        }
+        
+        // Actualizar estructura persistida y guardar
+        if (!savedData[playerId]) savedData[playerId] = { wins: {}, losses: {} };
+        
+        if (map[champId]) {
+          // Actualizar el contador en los datos guardados
+          savedData[playerId][type === "win" ? "wins" : "losses"][champId] = map[champId];
+        } else {
+          // Eliminar la entrada si el contador llegó a 0
+          delete savedData[playerId][type === "win" ? "wins" : "losses"][champId];
+        }
+        
+        saveData();
+      }
+
+      /* =============================================================
+       *  Exportación e importación de datos
+       * ===========================================================*/
+
+      function exportData() {
+        // Crear un objeto Blob con los datos
+        const dataStr = JSON.stringify(savedData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        
+        // Crear un URL para el blob
+        const url = URL.createObjectURL(blob);
+        
+        // Crear un elemento <a> para descargar el archivo
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `lol-tracker-data-${new Date().toISOString().slice(0, 10)}.json`;
+        
+        // Simular un clic en el enlace para iniciar la descarga
+        document.body.appendChild(a);
+        a.click();
+        
+        // Limpiar
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 0);
+      }
+
+      function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+          try {
+            const importedData = JSON.parse(e.target.result);
+            
+            // Validar que el formato sea correcto
+            if (typeof importedData !== 'object') {
+              throw new Error('Formato de archivo inválido');
+            }
+            
+            // Actualizar los datos
+            savedData = importedData;
+            saveData();
+            
+            // Recargar la página para mostrar los datos importados
+            alert('Datos importados correctamente. La página se recargará.');
+            location.reload();
+          } catch (error) {
+            alert(`Error al importar datos: ${error.message}`);
+          }
+        };
+        
+        reader.readAsText(file);
+      }
+
       /* =============================================================
        *  Inicialización global
        * ===========================================================*/
@@ -341,13 +504,28 @@
       document.addEventListener("DOMContentLoaded", async () => {
         savedData = loadSavedData();
         await loadChampions();
-
+        
+        // Agregar controles de datos antes del contenido principal
+        const app = document.getElementById("app");
+        const dataControls = document.createElement("div");
+        dataControls.className = "data-controls";
+        dataControls.innerHTML = `
+          <button id="btn-export" class="btn-data">Exportar Datos</button>
+          <label for="file-import" class="btn-data">Importar Datos</label>
+          <input type="file" id="file-import" accept=".json" style="display: none;">
+        `;
+        app.appendChild(dataControls);
+        
+        // Agregar event listeners para exportar/importar
+        document.getElementById("btn-export").addEventListener("click", exportData);
+        document.getElementById("file-import").addEventListener("change", importData);
+        
         createPlayerSection("JarvanIV", true); // Main
-
+        
         // Separador visual
         const hr = document.createElement("hr");
-        document.getElementById("app").appendChild(hr);
-
+        app.appendChild(hr);
+        
         createPlayerSection("Zoe"); // Secundario
       });
     </script>
