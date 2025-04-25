@@ -191,6 +191,180 @@
         background: var(--accent);
         color: #000;
       }
+
+      .username-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      .username-input {
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--accent);
+        padding: 0.3rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
+
+      .save-username-btn {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      /* Estilos para el modal de cambio de campeón */
+      .champion-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        overflow: hidden;
+      }
+
+      .champion-modal.show {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+
+      .modal-content {
+        background-color: var(--bg);
+        margin: 5vh auto;
+        padding: 20px;
+        border: 1px solid var(--accent);
+        width: 90%;
+        max-width: 800px;
+        border-radius: 8px;
+        max-height: 90vh;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--accent) var(--panel);
+      }
+
+      /* Estilizar scrollbar para navegadores webkit (Chrome, Safari, etc.) */
+      .modal-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .modal-content::-webkit-scrollbar-track {
+        background: var(--panel);
+        border-radius: 4px;
+      }
+
+      .modal-content::-webkit-scrollbar-thumb {
+        background-color: var(--accent);
+        border-radius: 4px;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--accent);
+        padding-bottom: 10px;
+      }
+
+      .modal-close {
+        background: transparent;
+        border: none;
+        color: var(--text);
+        font-size: 28px;
+        cursor: pointer;
+      }
+
+      .champions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 10px;
+      }
+
+      .champion-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .champion-item:hover {
+        background-color: var(--panel);
+        transform: scale(1.05);
+      }
+
+      .champion-item.current {
+        border: 2px solid var(--accent);
+      }
+
+      .champion-item img {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+
+      .champion-item span {
+        margin-top: 5px;
+        font-size: 0.8rem;
+        text-align: center;
+      }
+
+      /* Estilos responsivos */
+      @media (max-width: 600px) {
+        .champions-grid {
+          grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        }
+        
+        .champion-item img {
+          width: 50px;
+          height: 50px;
+        }
+        
+        .champion-item span {
+          font-size: 0.7rem;
+        }
+      }
+
+      .player-img.champion-change-trigger {
+        transition: transform 0.2s ease;
+      }
+
+      .player-img.champion-change-trigger:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 10px var(--accent);
+      }
+
+      /* Estilizar scrollbar para toda la aplicación */
+      ::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: var(--bg);
+        border-radius: 4px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background-color: var(--accent);
+        border-radius: 4px;
+        border: 2px solid var(--bg);
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: #d9a60a;
+      }
+
+      /* Prevenir scroll cuando el modal está abierto */
+      body.modal-open {
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
@@ -260,9 +434,12 @@
        *  Construcción dinámica de secciones por jugador
        * ===========================================================*/
 
-      function createPlayerSection(playerId, highlight = false) {
+      function createPlayerSection(playerId, highlight = false, defaultUsername = "") {
         const champName = championsData[playerId]?.name ?? playerId;
         const app = document.getElementById("app");
+        
+        // Obtener el nombre de usuario guardado o usar el predeterminado
+        const savedUsername = savedData[playerId]?.username || defaultUsername;
 
         // --- Estructura base ------------------------------------
         const section = document.createElement("section");
@@ -270,10 +447,13 @@
         section.innerHTML = `
           <div class="player-wrapper">
             <div class="player">
-              <img class="player-img" src="${championImgUrl(playerId)}" alt="${champName}">
+              <img class="player-img champion-change-trigger" src="${championImgUrl(playerId)}" alt="${champName}" title="Haz clic para cambiar de campeón">
               <div>
                 <strong class="player-name">${champName}</strong>
-                <div>${highlight ? "EL REY DE DEMACIA" : "Best Zoe LAS"}</div>
+                <div class="username-container">
+                  <span>Usuario: </span>
+                  <strong class="username-display">${savedUsername}</strong>
+                </div>
               </div>
             </div>
           </div>
@@ -305,6 +485,7 @@
         const btnLoss = section.querySelector(".btn-loss");
         const winsList = section.querySelector(".wins-list");
         const lossesList = section.querySelector(".losses-list");
+        const championImg = section.querySelector(".champion-change-trigger");
 
         // Rellenar selector con todos los campeones
         Object.values(championsData).forEach((champ) => {
@@ -313,15 +494,35 @@
           option.textContent = champ.name;
           select.appendChild(option);
         });
-
+        
         // --- Estado y restauración --------------------------------
-        const initial = savedData[playerId] ?? { wins: {}, losses: {} };
+        const storageKey = `${defaultUsername}:${playerId}`;
+        const initial = savedData[storageKey] ?? { wins: {}, losses: {}, username: savedUsername };
         players[playerId] = {
           wins: { ...initial.wins },
           losses: { ...initial.losses },
+          username: initial.username || savedUsername,
           winsList,
           lossesList,
         };
+
+        // Guardar el nombre de usuario en los datos persistentes
+        if (!savedData[storageKey]) {
+          savedData[storageKey] = { wins: {}, losses: {}, username: savedUsername };
+          saveData();
+        } else if (!savedData[storageKey].username) {
+          savedData[storageKey].username = savedUsername;
+          saveData();
+        }
+
+        // Listener para abrir el modal al hacer clic en la imagen
+        championImg.addEventListener("click", () => {
+          console.log(`Abriendo modal para: ${playerId}`);
+          openChampionModal(playerId);
+        });
+        
+        // Agregar cursor pointer y efecto visual
+        championImg.style.cursor = "pointer";
 
         // Renderizar elementos guardados
         const renderCounters = (map, listEl, playerId, type) => {
@@ -393,8 +594,9 @@
         }
 
         // Actualizar estructura persistida y guardar
-        if (!savedData[playerId]) savedData[playerId] = { wins: {}, losses: {} };
-        savedData[playerId][type === "win" ? "wins" : "losses"][champId] =
+        const storageKey = `${players[playerId].username}:${playerId}`;
+        if (!savedData[storageKey]) savedData[storageKey] = { wins: {}, losses: {} };
+        savedData[storageKey][type === "win" ? "wins" : "losses"][champId] =
           map[champId];
         saveData();
       }
@@ -426,14 +628,15 @@
         }
         
         // Actualizar estructura persistida y guardar
-        if (!savedData[playerId]) savedData[playerId] = { wins: {}, losses: {} };
+        const storageKey = `${players[playerId].username}:${playerId}`;
+        if (!savedData[storageKey]) savedData[storageKey] = { wins: {}, losses: {} };
         
         if (map[champId]) {
           // Actualizar el contador en los datos guardados
-          savedData[playerId][type === "win" ? "wins" : "losses"][champId] = map[champId];
+          savedData[storageKey][type === "win" ? "wins" : "losses"][champId] = map[champId];
         } else {
           // Eliminar la entrada si el contador llegó a 0
-          delete savedData[playerId][type === "win" ? "wins" : "losses"][champId];
+          delete savedData[storageKey][type === "win" ? "wins" : "losses"][champId];
         }
         
         saveData();
@@ -498,6 +701,158 @@
       }
 
       /* =============================================================
+       *  Modal para cambio de campeón
+       * ===========================================================*/
+
+      // Crear el modal una sola vez en el documento
+      function createChampionModal() {
+        // Verificar si ya existe
+        if (document.getElementById('champion-modal')) return;
+        
+        const modal = document.createElement('div');
+        modal.id = 'champion-modal';
+        modal.className = 'champion-modal';
+        modal.innerHTML = `
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>Selecciona un nuevo campeón</h2>
+              <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="champions-grid"></div>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Cerrar modal al hacer clic en la X o fuera del contenido
+        const closeBtn = modal.querySelector('.modal-close');
+        closeBtn.addEventListener('click', () => {
+          closeModal(modal);
+        });
+        
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            closeModal(modal);
+          }
+        });
+      }
+
+      // Función para abrir el modal con los campeones
+      function openChampionModal(currentPlayerId) {
+        createChampionModal();
+        
+        const modal = document.getElementById('champion-modal');
+        const grid = modal.querySelector('.champions-grid');
+        
+        // Limpiar grid
+        grid.innerHTML = '';
+        
+        // Llenar grid con imágenes de campeones
+        Object.values(championsData).forEach(champ => {
+          const champDiv = document.createElement('div');
+          champDiv.className = 'champion-item';
+          if (champ.id === currentPlayerId) {
+            champDiv.classList.add('current');
+          }
+          
+          champDiv.innerHTML = `
+            <img src="${championImgUrl(champ.id)}" alt="${champ.name}">
+            <span>${champ.name}</span>
+          `;
+          
+          // Evento para seleccionar campeón
+          champDiv.addEventListener('click', () => {
+            if (champ.id !== currentPlayerId) {
+              console.log(`Seleccionado: ${champ.id} (${champ.name})`);
+              changePlayerChampion(currentPlayerId, champ.id, players[currentPlayerId].username);
+            }
+          });
+          
+          grid.appendChild(champDiv);
+        });
+        
+        // Mostrar modal y bloquear scroll del body
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+      }
+
+      // Función para cerrar el modal
+      function closeModal(modal) {
+        modal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+      }
+
+      /* =============================================================
+       *  Gestión del campeón activo
+       * ===========================================================*/
+
+      // Guardar el último campeón seleccionado como activo
+      function setActiveChampion(championId, username) {
+        localStorage.setItem(`${username}:activeChampion`, championId);
+      }
+
+      // Obtener el campeón activo
+      function getActiveChampion(username) {
+        return localStorage.getItem(`${username}:activeChampion`) || 'JarvanIV'; // Default
+      }
+
+      // Modificar la función changePlayerChampion
+      function changePlayerChampion(oldPlayerId, newChampId, username) {
+        // Verificar si el nuevo campeón ya existe como jugador
+        console.log(`Verificando si existe un jugador usando actualmente el campeón ${newChampId}`);
+        
+        // Comprobar si el campeón ya está en uso por algún usuario
+        const otherUserActiveChamp = Object.keys(savedData).find(key => {
+          // Verificar si la clave corresponde a este campeón y no es el jugador actual
+          return key === newChampId && savedData[key].username !== username;
+        });
+        
+        if (otherUserActiveChamp) {
+          alert(`Ya existe un jugador con el campeón ${championsData[newChampId].name}`);
+          return false;
+        }
+        
+        // Obtener los datos del jugador anterior
+        const userData = savedData[oldPlayerId];
+        if (!userData) {
+          console.error("No se encontraron datos para el jugador:", oldPlayerId);
+          alert("Error al cambiar de campeón. No se encontraron datos del jugador actual.");
+          return false;
+        }
+        
+        const newChampName = championsData[newChampId].name;
+        console.log(`Cambiando de ${oldPlayerId} a ${newChampId} (${newChampName})`);
+        
+        // Crear entrada para el nuevo campeón con formato ${usuario}:${campeon}
+        const newStorageKey = `${username}:${newChampId}`;
+        savedData[newChampId] = {
+          wins: { ...userData.wins },
+          losses: { ...userData.losses },
+          username: username
+        };
+        
+        // Eliminar la entrada del campeón anterior
+        delete savedData[oldPlayerId];
+        
+        // Establecer el nuevo campeón como activo
+        setActiveChampion(newChampId, username);
+        
+        // Guardar cambios
+        console.log("Datos actualizados:", savedData);
+        saveData();
+        
+        // Mostrar mensaje antes de recargar
+        alert(`Cambiando a ${newChampName}. La página se recargará para aplicar los cambios.`);
+        
+        // Recargar la página para aplicar los cambios
+        location.reload();
+        
+        return true;
+      }
+
+      /* =============================================================
        *  Inicialización global
        * ===========================================================*/
 
@@ -520,13 +875,13 @@
         document.getElementById("btn-export").addEventListener("click", exportData);
         document.getElementById("file-import").addEventListener("change", importData);
         
-        createPlayerSection("JarvanIV", true); // Main
+        createPlayerSection(getActiveChampion("CLON"), true, "CLON"); // Main con usuario predeterminado "CLON"
         
         // Separador visual
         const hr = document.createElement("hr");
         app.appendChild(hr);
         
-        createPlayerSection("Zoe"); // Secundario
+        createPlayerSection(getActiveChampion("TIO"), false, "TIO"); // Secundario con usuario predeterminado "TIO"
       });
     </script>
   </body>
