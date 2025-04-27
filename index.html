@@ -795,7 +795,13 @@
 
       // Obtener el campeón activo
       function getActiveChampion(username) {
-        return localStorage.getItem(`${username}:activeChampion`) || 'JarvanIV'; // Default
+        const defaultChampions = {
+          "TIO": "Zoe",
+          "CLON": "JarvanIV"
+        };
+        
+        const defaultChamp = defaultChampions[username] || "JarvanIV";
+        return localStorage.getItem(`${username}:activeChampion`) || defaultChamp;
       }
 
       // Modificar la función changePlayerChampion
@@ -874,6 +880,11 @@
         // Agregar event listeners para exportar/importar
         document.getElementById("btn-export").addEventListener("click", exportData);
         document.getElementById("file-import").addEventListener("change", importData);
+        
+        // Inicializar campeones por defecto si no existen en localStorage
+        if (!localStorage.getItem("TIO:activeChampion")) {
+          localStorage.setItem("TIO:activeChampion", "Zoe");
+        }
         
         createPlayerSection(getActiveChampion("CLON"), true, "CLON"); // Main con usuario predeterminado "CLON"
         
